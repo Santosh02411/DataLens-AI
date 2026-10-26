@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Theme tokens (RGB channels). Light is the default; .dark on <html> switches every token. */
+:root {
+  color-scheme: light;
+  --canvas: 244 246 248; --surface: 255 255 255; --surface-2: 248 250 251; --line: 221 227 234;
+  --ink: 21 34 56; --ink-soft: 36 52 79; --ink-muted: 84 99 125;
+  --lens: 15 118 110; --lens-soft: 227 242 240; --lens-deep: 11 90 84;
+  --caution: 180 83 9; --caution-soft: 253 243 228; --danger: 190 18 60; --danger-soft: 252 232 237;
+  --ai: 91 60 156; --ai-soft: 247 244 254; --sidebar: 255 255 255; --on-accent: 255 255 255;
+  --brand-from: 15 118 110; --brand-to: 79 70 229;
+  --code: 21 34 56; --code-fg: 207 233 229;
+  --t-date: 232 238 249; --t-date-fg: 47 75 143; --t-cat: 241 236 250; --t-cat-fg: 91 60 156; --t-bool: 234 244 250; --t-bool-fg: 30 95 128;
+  --shadow-panel: 0 1px 2px rgba(21, 34, 56, 0.06), 0 0 0 1px rgba(21, 34, 56, 0.05);
+}
+.dark {
+  color-scheme: dark;
+  --canvas: 9 9 11; --surface: 23 23 26; --surface-2: 32 32 36; --line: 48 48 54;
+  --ink: 232 235 240; --ink-soft: 198 204 214; --ink-muted: 150 159 174;
+  --lens: 45 212 191; --lens-soft: 19 52 49; --lens-deep: 94 234 212;
+  --caution: 251 191 36; --caution-soft: 45 33 10; --danger: 248 113 113; --danger-soft: 52 20 24;
+  --ai: 196 181 253; --ai-soft: 37 30 56; --sidebar: 17 17 20; --on-accent: 4 32 28;
+  --brand-from: 167 139 250; --brand-to: 232 121 249;
+  --code: 5 5 7; --code-fg: 167 243 208;
+  --t-date: 34 36 48; --t-date-fg: 175 190 240; --t-cat: 44 34 66; --t-cat-fg: 205 185 250; --t-bool: 22 48 64; --t-bool-fg: 140 205 235;
+  --shadow-panel: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+html { -webkit-font-smoothing: antialiased; }
+body { @apply bg-canvas text-ink font-sans; font-feature-settings: "tnum" 1; }
+:focus-visible { outline: 2px solid rgb(var(--lens)); outline-offset: 2px; border-radius: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+@layer components {
+  .panel { @apply bg-surface rounded-xl shadow-panel; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-primary { @apply btn bg-lens text-on-accent hover:bg-lens-deep; }
+  .btn-quiet { @apply btn bg-surface text-ink ring-1 ring-line hover:bg-surface-2; }
+  .field { @apply w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted/70 focus:border-lens focus:outline-none focus:ring-2 focus:ring-lens/20; }
+  .label { @apply mb-1 block text-xs font-medium text-ink-muted; }
+}
+
+.receipt-step::before {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 24px;
+  bottom: -8px;
+  width: 1px;
+  background: repeating-linear-gradient(to bottom, rgb(var(--lens)) 0 3px, transparent 3px 7px);
+}
+.receipt-step:last-child::before { display: none; }
+
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.answer-in { animation: rise 260ms ease-out both; }
+
+/* Smooth, restrained theme change (skipped for reduced motion via the rule above). */
+.theme-ready body, .theme-ready .panel, .theme-ready aside { transition: background-color 160ms ease, color 160ms ease; }
+
+/* Brand gradient for headline numbers (violet -> fuchsia in dark, teal -> indigo in light). */
+.brand-text { background: linear-gradient(90deg, rgb(var(--brand-from)), rgb(var(--brand-to))); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.brand-bg { background: linear-gradient(135deg, rgb(var(--brand-from)), rgb(var(--brand-to))); }

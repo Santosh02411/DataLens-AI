@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Devpost Learn: the learner profile stays local
+/devpost/learner-profile.md
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

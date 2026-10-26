@@ -1,0 +1,11 @@
+# Tested on Python 3.10, 3.12 and 3.14. Ranges (rather than exact pins) for the
+# compiled packages let pip pick the wheel built for your Python version.
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+python-multipart==0.0.20
+pydantic>=2.11.4,<3
+pandas>=2.2.3,<3
+numpy>=2.0,<3
+openpyxl==3.1.5
+httpx==0.28.1
+python-dotenv==1.1.0

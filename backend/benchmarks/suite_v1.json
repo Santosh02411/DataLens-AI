@@ -1,0 +1,865 @@
+{
+ "suite": "datalens-accuracy",
+ "version": 1,
+ "generated_by": "scripts/compute_benchmark_expectations.py (plain pandas, independent of app code; edge values also hand-verified)",
+ "datasets": {
+  "retail": {
+   "path": "sample-data/retail_sales_2025.csv",
+   "sha256": "5abda1bf5f778815fcb26b97535064b076dff33e91823d284d7967a36bf5bccf",
+   "rows": 4217
+  },
+  "edge": {
+   "path": "backend/benchmarks/edge_cases_v1.csv",
+   "sha256": "8cdc1e8b5e4e223e575bebf168c104fdd22ed9568a8448b248058cf30383dc07",
+   "rows": 10
+  }
+ },
+ "cases": [
+  {
+   "id": "R01",
+   "category": "sum",
+   "dataset": "retail",
+   "question": "What is the total revenue?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "sum",
+    "column": "revenue"
+   },
+   "extract": {
+    "type": "scalar"
+   },
+   "expected": {
+    "kind": "number",
+    "value": 1752008.2,
+    "rel_tol": 1e-09,
+    "abs_tol": 1e-06
+   },
+   "ai": true
+  },
+  {
+   "id": "R02",
+   "category": "average",
+   "dataset": "retail",
+   "question": "What is the average revenue per order?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "mean",
+    "column": "revenue"
+   },
+   "extract": {
+    "type": "scalar"
+   },
+   "expected": {
+    "kind": "number",
+    "value": 420.448332,
+    "rel_tol": 1e-09,
+    "abs_tol": 1e-06
+   },
+   "ai": true
+  },
+  {
+   "id": "R03",
+   "category": "median",
+   "dataset": "retail",
+   "question": "What is the median revenue?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "median",
+    "column": "revenue"
+   },
+   "extract": {
+    "type": "scalar"
+   },
+   "expected": {
+    "kind": "number",
+    "value": 260.0,
+    "rel_tol": 1e-09,
+    "abs_tol": 1e-06
+   },
+   "ai": false
+  },
+  {
+   "id": "R04",
+   "category": "count",
+   "dataset": "retail",
+   "question": "How many orders are there?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "count",
+    "column": null
+   },
+   "extract": {
+    "type": "scalar"
+   },
+   "expected": {
+    "kind": "number",
+    "value": 4217.0,
+    "rel_tol": 1e-09,
+    "abs_tol": 1e-06
+   },
+   "ai": false
+  },
+  {
+   "id": "R05",
+   "category": "filter",
+   "dataset": "retail",
+   "question": "How many orders came from the West region?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "count",
+    "column": null,
+    "filters": [
+     {
+      "column": "region",
+      "op": "eq",
+      "value": "West"
+     }
+    ]
+   },
+   "extract": {
+    "type": "scalar"
+   },
+   "expected": {
+    "kind": "number",
+    "value": 942.0,
+    "rel_tol": 1e-09,
+    "abs_tol": 1e-06
+   },
+   "ai": true
+  },
+  {
+   "id": "R06",
+   "category": "grouping",
+   "dataset": "retail",
+   "question": "What is total revenue by region?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "sum",
+    "column": "revenue",
+    "group_by": [
+     "region"
+    ]
+   },
+   "extract": {
+    "type": "table",
+    "key": "region",
+    "column": "total revenue"
+   },
+   "expected": {
+    "kind": "table",
+    "value": {
+     "Central": 249026.4,
+     "East": 391799.45,
+     "North": 390172.6,
+     "South": 338841.65,
+     "West": 382168.1
+    },
+    "rel_tol": 1e-09,
+    "abs_tol": 1e-06
+   },
+   "ai": true
+  },
+  {
+   "id": "R07",
+   "category": "ranking",
+   "dataset": "retail",
+   "question": "Which region has the highest total revenue?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "sum",
+    "column": "revenue",
+    "group_by": [
+     "region"
+    ],
+    "sort": "desc"
+   },
+   "extract": {
+    "type": "first",
+    "column": "region"
+   },
+   "expected": {
+    "kind": "text",
+    "value": "East"
+   },
+   "ai": true
+  },
+  {
+   "id": "R08",
+   "category": "grouping",
+   "dataset": "retail",
+   "question": "What is the average customer rating by channel?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "mean",
+    "column": "customer_rating",
+    "group_by": [
+     "channel"
+    ]
+   },
+   "extract": {
+    "type": "table",
+    "key": "channel",
+    "column": "average customer_rating"
+   },
+   "expected": {
+    "kind": "table",
+    "value": {
+     "Online": 3.83996,
+     "Partner": 3.554622,
+     "Retail Store": 4.295016
+    },
+    "rel_tol": 1e-09,
+    "abs_tol": 1e-06
+   },
+   "ai": false
+  },
+  {
+   "id": "R09",
+   "category": "multi-condition filter",
+   "dataset": "retail",
+   "question": "How many West online orders had at least 3 units?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "count",
+    "column": null,
+    "filters": [
+     {
+      "column": "region",
+      "op": "eq",
+      "value": "West"
+     },
+     {
+      "column": "channel",
+      "op": "eq",
+      "value": "Online"
+     },
+     {
+      "column": "units",
+      "op": "gte",
+      "value": 3
+     }
+    ]
+   },
+   "extract": {
+    "type": "scalar"
+   },
+   "expected": {
+    "kind": "number",
+    "value": 222.0,
+    "rel_tol": 1e-09,
+    "abs_tol": 1e-06
+   },
+   "ai": true
+  },
+  {
+   "id": "R10",
+   "category": "date filter",
+   "dataset": "retail",
+   "question": "What was total revenue in Q3 2025 (July to September)?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "sum",
+    "column": "revenue",
+    "filters": [
+     {
+      "column": "order_date",
+      "op": "between",
+      "value": [
+       "2025-07-01",
+       "2025-09-30"
+      ]
+     }
+    ]
+   },
+   "extract": {
+    "type": "scalar"
+   },
+   "expected": {
+    "kind": "number",
+    "value": 400728.65,
+    "rel_tol": 1e-09,
+    "abs_tol": 1e-06
+   },
+   "ai": true
+  },
+  {
+   "id": "R11",
+   "category": "trend",
+   "dataset": "retail",
+   "question": "How did total revenue change month by month?",
+   "operation": {
+    "type": "trend",
+    "date_column": "order_date",
+    "agg": "sum",
+    "value_column": "revenue",
+    "granularity": "month"
+   },
+   "extract": {
+    "type": "table",
+    "key": "period",
+    "column": "total revenue"
+   },
+   "expected": {
+    "kind": "table",
+    "value": {
+     "2025-01": 118351.95,
+     "2025-02": 106456.9,
+     "2025-03": 129603.85,
+     "2025-04": 139316.15,
+     "2025-05": 126458.7,
+     "2025-06": 128888.05,
+     "2025-07": 140088.45,
+     "2025-08": 130144.05,
+     "2025-09": 130496.15,
+     "2025-10": 172347.2,
+     "2025-11": 201137.5,
+     "2025-12": 228719.25
+    },
+    "rel_tol": 1e-09,
+    "abs_tol": 1e-06
+   },
+   "ai": false
+  },
+  {
+   "id": "R12",
+   "category": "comparison",
+   "dataset": "retail",
+   "question": "By how much did West's revenue change from Q2 to Q3 2025?",
+   "operation": {
+    "type": "period_change",
+    "date_column": "order_date",
+    "agg": "sum",
+    "value_column": "revenue",
+    "granularity": "quarter",
+    "period_a": "2025-Q2",
+    "period_b": "2025-Q3",
+    "group_by": "region",
+    "sort": "asc"
+   },
+   "extract": {
+    "type": "cell",
+    "match": {
+     "region": "West"
+    },
+    "column": "change"
+   },
+   "expected": {
+    "kind": "number",
+    "value": -30903.0,
+    "rel_tol": 1e-09,
+    "abs_tol": 1e-06
+   },
+   "ai": false
+  },
+  {
+   "id": "R13",
+   "category": "comparison",
+   "dataset": "retail",
+   "question": "Which region's revenue dropped most from Q2 to Q3 2025?",
+   "operation": {
+    "type": "period_change",
+    "date_column": "order_date",
+    "agg": "sum",
+    "value_column": "revenue",
+    "granularity": "quarter",
+    "period_a": "2025-Q2",
+    "period_b": "2025-Q3",
+    "group_by": "region",
+    "sort": "asc"
+   },
+   "extract": {
+    "type": "first",
+    "column": "region"
+   },
+   "expected": {
+    "kind": "text",
+    "value": "West"
+   },
+   "ai": true
+  },
+  {
+   "id": "R14",
+   "category": "percentage",
+   "dataset": "retail",
+   "question": "What percentage of orders were placed online?",
+   "operation": {
+    "type": "distribution",
+    "column": "channel"
+   },
+   "extract": {
+    "type": "cell",
+    "match": {
+     "channel": "Online"
+    },
+    "column": "share"
+   },
+   "expected": {
+    "kind": "number",
+    "value": 51.719232,
+    "rel_tol": 0,
+    "abs_tol": 0.05
+   },
+   "ai": false
+  },
+  {
+   "id": "R15",
+   "category": "sorting",
+   "dataset": "retail",
+   "question": "What are the 5 largest orders by revenue?",
+   "operation": {
+    "type": "top_rows",
+    "sort_by": "revenue",
+    "order": "desc",
+    "n": 5
+   },
+   "extract": {
+    "type": "column_list",
+    "column": "order_id"
+   },
+   "expected": {
+    "kind": "list",
+    "value": [
+     "ORD-13274",
+     "ORD-13137",
+     "ORD-13312",
+     "ORD-10310",
+     "ORD-10057"
+    ]
+   },
+   "ai": false
+  },
+  {
+   "id": "R16",
+   "category": "ranking",
+   "dataset": "retail",
+   "question": "Which channel ships fastest on average?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "mean",
+    "column": "shipping_days",
+    "group_by": [
+     "channel"
+    ],
+    "sort": "asc"
+   },
+   "extract": {
+    "type": "first",
+    "column": "channel"
+   },
+   "expected": {
+    "kind": "text",
+    "value": "Retail Store"
+   },
+   "ai": true
+  },
+  {
+   "id": "R17",
+   "category": "count",
+   "dataset": "retail",
+   "question": "How many distinct products are there?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "nunique",
+    "column": "product"
+   },
+   "extract": {
+    "type": "scalar"
+   },
+   "expected": {
+    "kind": "number",
+    "value": 13.0,
+    "rel_tol": 1e-09,
+    "abs_tol": 1e-06
+   },
+   "ai": true
+  },
+  {
+   "id": "R18",
+   "category": "duplicates",
+   "dataset": "retail",
+   "question": "How many rows does the file have, and are duplicates flagged?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "count",
+    "column": null
+   },
+   "extract": {
+    "type": "scalar"
+   },
+   "expected": {
+    "kind": "number",
+    "value": 4217.0,
+    "rel_tol": 1e-09,
+    "abs_tol": 1e-06
+   },
+   "expect_warning": "17 duplicate rows",
+   "ai": false
+  },
+  {
+   "id": "R19",
+   "category": "missing values",
+   "dataset": "retail",
+   "question": "What is the average customer rating, and are missing ratings disclosed?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "mean",
+    "column": "customer_rating"
+   },
+   "extract": {
+    "type": "scalar"
+   },
+   "expected": {
+    "kind": "number",
+    "value": 3.943544,
+    "rel_tol": 1e-09,
+    "abs_tol": 1e-06
+   },
+   "expect_warning": "391 rows",
+   "ai": false
+  },
+  {
+   "id": "R20",
+   "category": "misleading correlation",
+   "dataset": "retail",
+   "question": "Do longer shipping times cause lower ratings?",
+   "operation": {
+    "type": "correlation",
+    "column_x": "shipping_days",
+    "column_y": "customer_rating"
+   },
+   "extract": {
+    "type": "scalar"
+   },
+   "expected": {
+    "kind": "number",
+    "value": -0.477827,
+    "rel_tol": 0,
+    "abs_tol": 0.0001
+   },
+   "expect_warning": "not that one causes the other",
+   "ai": false
+  },
+  {
+   "id": "R21",
+   "category": "incorrect column name",
+   "dataset": "retail",
+   "question": "What is the total revenu?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "sum",
+    "column": "revenu"
+   },
+   "extract": {
+    "type": "error"
+   },
+   "expected": {
+    "kind": "error_contains",
+    "value": "no column called 'revenu'"
+   },
+   "ai": false
+  },
+  {
+   "id": "R22",
+   "category": "wrong column type",
+   "dataset": "retail",
+   "question": "What is the sum of region?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "sum",
+    "column": "region"
+   },
+   "extract": {
+    "type": "error"
+   },
+   "expected": {
+    "kind": "error_contains",
+    "value": "needs a numeric column"
+   },
+   "ai": false
+  },
+  {
+   "id": "R23",
+   "category": "empty result",
+   "dataset": "retail",
+   "question": "What is the revenue of orders with more than 1,000 units?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "sum",
+    "column": "revenue",
+    "filters": [
+     {
+      "column": "units",
+      "op": "gt",
+      "value": 1000
+     }
+    ]
+   },
+   "extract": {
+    "type": "error"
+   },
+   "expected": {
+    "kind": "error_contains",
+    "value": "No rows match"
+   },
+   "ai": false
+  },
+  {
+   "id": "R24",
+   "category": "invalid value",
+   "dataset": "retail",
+   "question": "How many orders came from Atlantis?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "count",
+    "column": null,
+    "filters": [
+     {
+      "column": "region",
+      "op": "eq",
+      "value": "Atlantis"
+     }
+    ]
+   },
+   "extract": {
+    "type": "error"
+   },
+   "expected": {
+    "kind": "error_contains",
+    "value": "doesn't appear in region"
+   },
+   "ai": false
+  },
+  {
+   "id": "E01",
+   "category": "sum with nulls",
+   "dataset": "edge",
+   "question": "What is the total amount?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "sum",
+    "column": "amount"
+   },
+   "extract": {
+    "type": "scalar"
+   },
+   "expected": {
+    "kind": "number",
+    "value": 1420.5,
+    "rel_tol": 1e-09,
+    "abs_tol": 1e-06
+   },
+   "expect_warning": "2 rows",
+   "ai": false
+  },
+  {
+   "id": "E02",
+   "category": "average with nulls",
+   "dataset": "edge",
+   "question": "What is the average amount?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "mean",
+    "column": "amount"
+   },
+   "extract": {
+    "type": "scalar"
+   },
+   "expected": {
+    "kind": "number",
+    "value": 177.5625,
+    "rel_tol": 1e-09,
+    "abs_tol": 1e-06
+   },
+   "ai": false
+  },
+  {
+   "id": "E03",
+   "category": "median (even count)",
+   "dataset": "edge",
+   "question": "What is the median amount?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "median",
+    "column": "amount"
+   },
+   "extract": {
+    "type": "scalar"
+   },
+   "expected": {
+    "kind": "number",
+    "value": 125.0,
+    "rel_tol": 1e-09,
+    "abs_tol": 1e-06
+   },
+   "ai": false
+  },
+  {
+   "id": "E04",
+   "category": "missing values",
+   "dataset": "edge",
+   "question": "How many rows have no amount?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "count",
+    "column": null,
+    "filters": [
+     {
+      "column": "amount",
+      "op": "is_null"
+     }
+    ]
+   },
+   "extract": {
+    "type": "scalar"
+   },
+   "expected": {
+    "kind": "number",
+    "value": 2.0,
+    "rel_tol": 1e-09,
+    "abs_tol": 1e-06
+   },
+   "ai": false
+  },
+  {
+   "id": "E05",
+   "category": "duplicates",
+   "dataset": "edge",
+   "question": "How many rows are there?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "count",
+    "column": null
+   },
+   "extract": {
+    "type": "scalar"
+   },
+   "expected": {
+    "kind": "number",
+    "value": 10.0,
+    "rel_tol": 1e-09,
+    "abs_tol": 1e-06
+   },
+   "expect_warning": "1 duplicate rows",
+   "ai": false
+  },
+  {
+   "id": "E06",
+   "category": "grouping with negatives",
+   "dataset": "edge",
+   "question": "What is the total amount by city?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "sum",
+    "column": "amount",
+    "group_by": [
+     "city"
+    ]
+   },
+   "extract": {
+    "type": "table",
+    "key": "city",
+    "column": "total amount"
+   },
+   "expected": {
+    "kind": "table",
+    "value": {
+     "Belagavi": 780.0,
+     "Pune": 410.5,
+     "Mysuru": 230.0
+    },
+    "rel_tol": 1e-09,
+    "abs_tol": 1e-09
+   },
+   "ai": false
+  },
+  {
+   "id": "E07",
+   "category": "numeric filter",
+   "dataset": "edge",
+   "question": "How many rows have a quantity of at least 2?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "count",
+    "column": null,
+    "filters": [
+     {
+      "column": "qty",
+      "op": "gte",
+      "value": 2
+     }
+    ]
+   },
+   "extract": {
+    "type": "scalar"
+   },
+   "expected": {
+    "kind": "number",
+    "value": 6.0,
+    "rel_tol": 1e-09,
+    "abs_tol": 1e-06
+   },
+   "ai": false
+  },
+  {
+   "id": "E08",
+   "category": "date filter",
+   "dataset": "edge",
+   "question": "What was the total amount in February and March 2025?",
+   "operation": {
+    "type": "aggregate",
+    "agg": "sum",
+    "column": "amount",
+    "filters": [
+     {
+      "column": "date",
+      "op": "between",
+      "value": [
+       "2025-02-01",
+       "2025-03-31"
+      ]
+     }
+    ]
+   },
+   "extract": {
+    "type": "scalar"
+   },
+   "expected": {
+    "kind": "number",
+    "value": 860.0,
+    "rel_tol": 1e-09,
+    "abs_tol": 1e-06
+   },
+   "ai": false
+  },
+  {
+   "id": "A01",
+   "category": "unanswerable",
+   "dataset": "retail",
+   "question": "What is the average profit by region?",
+   "operation": null,
+   "ai": true,
+   "extract": {
+    "type": "status"
+   },
+   "expected": {
+    "kind": "status",
+    "value": "unanswerable"
+   }
+  },
+  {
+   "id": "A02",
+   "category": "unanswerable",
+   "dataset": "retail",
+   "question": "How many customers are over 40 years old?",
+   "operation": null,
+   "ai": true,
+   "extract": {
+    "type": "status"
+   },
+   "expected": {
+    "kind": "status",
+    "value": "unanswerable"
+   }
+  }
+ ]
+}
