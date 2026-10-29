@@ -177,8 +177,11 @@ Without a key, everything works except typed questions and AI explanations, and 
 
 ```
 GEMINI_API_KEY=...        # recommended: free tier
+LLM_MODEL=auto            # picks the newest Flash model your key can use
 # OPENAI_API_KEY=... or ANTHROPIC_API_KEY=... also work
 ```
+
+Google retires Gemini models regularly, and new keys can't use older ones (they get HTTP 404). With `LLM_MODEL=auto`, DataLens lists the models your key can use and picks the newest stable Flash model. If a model returns 404 later, it switches to the next best one automatically. The sidebar shows the model in use.
 
 The provider is auto-detected from whichever key is set. You can force one with `LLM_PROVIDER`, choose a model with `LLM_MODEL`, and route requests through a compatible gateway with `LLM_BASE_URL`. If the provider reports a model error, set `LLM_MODEL` to a model your account can use. The sidebar shows the active provider and model.
 
@@ -189,7 +192,7 @@ cd backend
 pytest
 ```
 
-There are 139 backend tests (`pytest`, including the full accuracy benchmark as a regression guard) and 11 frontend tests (`npm test`). They cover:
+There are 143 backend tests (`pytest`, including the full accuracy benchmark as a regression guard) and 11 frontend tests (`npm test`). They cover:
 
 - **Validation:** unknown operation types and extra keys are rejected, unknown columns are reported with alternatives, type mismatches are caught, filter values are checked against the data, period formats are validated, and limits are enforced.
 - **Execution:** grouped sums and trends are checked against plain Pandas, along with exclusion of missing values, period change, honest errors for missing periods and for filters that match no rows, the correlation value and its caveats, top rows, distributions, and evidence rows coming from the matching group. The sample-data demo answer is also recomputed independently with Pandas.

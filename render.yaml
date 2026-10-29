@@ -11,7 +11,7 @@ services:
       - key: LLM_PROVIDER
         value: gemini
       - key: LLM_MODEL
-        value: gemini-2.5-flash
+        value: auto            # picks the newest Flash model your key can use
       - key: AI_RATE_PER_MINUTE
         value: "8"
       - key: AI_DAILY_LIMIT

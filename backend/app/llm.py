@@ -30,6 +30,30 @@ class LLMError(Exception):
     pass
 
 
+class LLMModelNotFound(LLMError):
+    pass
+
+
+GEMINI_SKIP = ("image", "tts", "live", "audio", "embedding", "robotics", "computer", "aqa", "learnlm", "gemma", "thinking", "exp")
+
+
+def rank_gemini_models(models: list[dict[str, Any]], exclude: set[str] = frozenset()) -> list[str]:
+    """Best text model first: newest Flash, then Flash-Lite, then others; stable before preview."""
+    scored = []
+    for m in models:
+        name = str(m.get("name", "")).removeprefix("models/")
+        if name in exclude or "generateContent" not in (m.get("supportedGenerationMethods") or []):
+            continue
+        if not name.startswith("gemini-") or any(s in name for s in GEMINI_SKIP):
+            continue
+        ver = re.match(r"gemini-(\d+(?:\.\d+)?)", name)
+        version = float(ver.group(1)) if ver else 0.0
+        family = 2 if "flash" in name and "lite" not in name else 1 if "flash" in name else 0
+        stable = 0 if ("preview" in name or re.search(r"-\d{2,}$", name)) else 1
+        scored.append(((family, version, stable), name))
+    return [n for _, n in sorted(scored, reverse=True)]
+
+
 OPERATIONS_DOC = """
 Return ONE JSON object: {"intent": "<short plain restatement of the question>", "operation": <operation>}.
 <operation> must be exactly one of these shapes. Use only the listed keys.
@@ -115,6 +139,7 @@ class Interpreter:
     def __init__(self, settings: Settings, transport: httpx.BaseTransport | None = None):
         self.settings = settings
         self.transport = transport
+        self.resolved_model: str | None = None
 
     @property
     def configured(self) -> bool:
@@ -132,9 +157,42 @@ class Interpreter:
             raise LLMError("The AI provider rejected the API key. Check the key in backend/.env.")
         if resp.status_code == 429:
             raise LLMError("The AI provider's rate limit was reached. Wait a moment and try again.")
+        if resp.status_code == 404:
+            raise LLMModelNotFound("The AI provider doesn't offer this model to your key (HTTP 404).")
         if resp.status_code >= 400:
-            raise LLMError(f"The AI provider returned an error (HTTP {resp.status_code}). Check LLM_MODEL in backend/.env.")
+            detail = ""
+            try:
+                detail = str((resp.json().get("error") or {}).get("message", ""))[:200]
+            except ValueError:
+                pass
+            raise LLMError(f"The AI provider returned an error (HTTP {resp.status_code}){': ' + detail if detail else ''}.")
         return resp.json()
+
+    # ---- Gemini model discovery: models change often and new keys can't use retired ones
+    def _gemini_models(self) -> list[dict[str, Any]]:
+        url = self._url("https://generativelanguage.googleapis.com", "/v1beta/models?pageSize=200")
+        try:
+            with httpx.Client(timeout=self.settings.llm_timeout_s, transport=self.transport) as client:
+                resp = client.get(url, headers={"x-goog-api-key": self.settings.llm_api_key or ""})
+        except httpx.HTTPError as exc:
+            raise LLMError("Couldn't reach Google to list the available Gemini models.") from exc
+        if resp.status_code in (401, 403):
+            raise LLMError("Google rejected the Gemini API key. Check GEMINI_API_KEY.")
+        if resp.status_code >= 400:
+            raise LLMError(f"Couldn't list Gemini models (HTTP {resp.status_code}).")
+        return resp.json().get("models") or []
+
+    def gemini_model(self, exclude: set[str] = frozenset()) -> str:
+        configured = self.settings.llm_model or "auto"
+        if configured != "auto" and configured not in exclude and self.resolved_model is None:
+            return configured
+        if self.resolved_model and self.resolved_model not in exclude:
+            return self.resolved_model
+        ranked = rank_gemini_models(self._gemini_models(), exclude)
+        if not ranked:
+            raise LLMError("Your Gemini key has no text model available. Check the key's project in Google AI Studio.")
+        self.resolved_model = ranked[0]
+        return self.resolved_model
 
     def _url(self, default_base: str, path: str) -> str:
         return f"{self.settings.llm_base_url or default_base}{path}"
@@ -164,15 +222,22 @@ class Interpreter:
             return data["choices"][0]["message"]["content"] or ""
         if s.llm_provider == "gemini":
             contents = [{"role": "model" if m["role"] == "assistant" else "user", "parts": [{"text": m["content"]}]} for m in messages]
-            data = self._post(
-                self._url("https://generativelanguage.googleapis.com", f"/v1beta/models/{model}:generateContent"),
-                {"x-goog-api-key": key},
-                {
-                    "systemInstruction": {"parts": [{"text": system}]},
-                    "contents": contents,
-                    "generationConfig": {"temperature": 0, **({"responseMimeType": "application/json"} if json_mode else {})},
-                },
-            )
+            body = {
+                "systemInstruction": {"parts": [{"text": system}]},
+                "contents": contents,
+                "generationConfig": {"temperature": 0, **({"responseMimeType": "application/json"} if json_mode else {})},
+            }
+            tried: set[str] = set()
+            for _ in range(2):
+                model = self.gemini_model(exclude=tried)
+                try:
+                    data = self._post(self._url("https://generativelanguage.googleapis.com", f"/v1beta/models/{model}:generateContent"), {"x-goog-api-key": key}, body)
+                    break
+                except LLMModelNotFound:
+                    tried.add(model)  # retired or not offered to this key: rediscover and retry once
+                    self.resolved_model = None
+            else:
+                raise LLMError(f"Gemini model(s) {', '.join(sorted(tried))} aren't available to your key, and no working replacement was found.")
             candidates = data.get("candidates") or []
             parts = (candidates[0].get("content") or {}).get("parts") if candidates else None
             if not parts:

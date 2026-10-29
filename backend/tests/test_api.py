@@ -216,13 +216,37 @@ def gemini_client(monkeypatch, replies, **settings_kw):
     monkeypatch.setenv("GEMINI_API_KEY", "g-test-key")
     calls = []
 
+    models = settings_kw.pop("models", MODELS)
+    missing = settings_kw.pop("missing", set())
+
     def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            calls.append({"url": str(request.url), "list": True})
+            return httpx.Response(200, json={"models": models})
+        name = str(request.url).split("/models/")[1].split(":")[0]
+        if name in missing:
+            calls.append({"url": str(request.url), "missing": True})
+            return httpx.Response(404, json={"error": {"code": 404, "message": f"models/{name} is not found"}})
         calls.append({"url": str(request.url), "headers": dict(request.headers), "body": json.loads(request.content)})
-        reply = replies[min(len(calls) - 1, len(replies) - 1)]
+        gen = [c for c in calls if "body" in c]
+        reply = replies[min(len(gen) - 1, len(replies) - 1)]
         return httpx.Response(200, json=reply)
 
+    settings_kw.setdefault("llm_model_override", "gemini-2.5-flash")
     app = create_app(Settings(llm_provider="gemini", **settings_kw), llm_transport=httpx.MockTransport(handler))
     return TestClient(app), calls
+
+
+MODELS = [
+    {"name": "models/gemini-2.5-flash", "supportedGenerationMethods": ["generateContent"]},
+    {"name": "models/gemini-3.5-flash", "supportedGenerationMethods": ["generateContent", "countTokens"]},
+    {"name": "models/gemini-3.5-flash-lite", "supportedGenerationMethods": ["generateContent"]},
+    {"name": "models/gemini-3.8-flash-preview", "supportedGenerationMethods": ["generateContent"]},
+    {"name": "models/gemini-3.8-flash", "supportedGenerationMethods": ["generateContent"]},
+    {"name": "models/gemini-3.8-flash-image", "supportedGenerationMethods": ["generateContent"]},
+    {"name": "models/gemini-3.1-flash-tts-preview", "supportedGenerationMethods": ["generateContent"]},
+    {"name": "models/gemini-embedding-2", "supportedGenerationMethods": ["embedContent"]},
+]
 
 
 def gem_text(text):
@@ -233,8 +257,9 @@ def test_gemini_is_preferred_when_several_keys_exist(monkeypatch):
     for k in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY"):
         monkeypatch.setenv(k, "x")
     monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("LLM_MODEL", raising=False)
     s = Settings()
-    assert s.llm_provider == "gemini" and s.llm_model == "gemini-2.5-flash"
+    assert s.llm_provider == "gemini" and s.llm_model == "auto"
 
 
 def test_gemini_request_shape_and_answer(monkeypatch):
@@ -279,3 +304,40 @@ def test_non_ai_features_ignore_ai_limits(monkeypatch):
     ds = c.post("/api/datasets/sample").json()
     for _ in range(5):
         assert c.post(f"/api/datasets/{ds['id']}/run", json={"operation": {"type": "aggregate", "agg": "count"}}).status_code == 200
+
+
+
+def test_gemini_auto_picks_best_available_model(monkeypatch):
+    op = json.dumps({"intent": "x", "operation": {"type": "aggregate", "agg": "count"}})
+    c, calls = gemini_client(monkeypatch, [gem_text(op)], llm_model_override=None)
+    ds = c.post("/api/datasets/sample").json()
+    assert c.post(f"/api/datasets/{ds['id']}/ask", json={"question": "how many rows"}).status_code == 200
+    assert calls[0].get("list") and "key=" not in calls[0]["url"]
+    gen = [x for x in calls if "body" in x][0]
+    assert gen["url"].endswith("/models/gemini-3.8-flash:generateContent")  # newest stable Flash; not image/tts/preview
+    assert c.get("/api/status").json()["ai"]["model"] == "gemini-3.8-flash"
+
+
+def test_gemini_retired_model_404_falls_back_automatically(monkeypatch):
+    op = json.dumps({"intent": "x", "operation": {"type": "aggregate", "agg": "count"}})
+    c, calls = gemini_client(monkeypatch, [gem_text(op)], missing={"gemini-2.5-flash"})
+    ds = c.post("/api/datasets/sample").json()
+    r = c.post(f"/api/datasets/{ds['id']}/ask", json={"question": "how many rows"})
+    assert r.status_code == 200, r.text
+    assert [x.get("missing") for x in calls][0] is True  # configured model 404'd first
+    assert [x for x in calls if "body" in x][0]["url"].endswith("/models/gemini-3.8-flash:generateContent")
+    # later requests go straight to the working model
+    c.post(f"/api/datasets/{ds['id']}/ask", json={"question": "how many rows again"})
+    assert sum(1 for x in calls if x.get("missing")) == 1
+
+
+def test_gemini_no_usable_model_is_explained(monkeypatch):
+    c, _ = gemini_client(monkeypatch, [gem_text("{}")], llm_model_override=None, models=[{"name": "models/gemini-embedding-2", "supportedGenerationMethods": ["embedContent"]}])
+    ds = c.post("/api/datasets/sample").json()
+    r = c.post(f"/api/datasets/{ds['id']}/ask", json={"question": "how many rows"})
+    assert r.status_code == 502 and "no text model" in r.json()["error"]["message"]
+
+
+def test_rank_gemini_models_order():
+    from app.llm import rank_gemini_models
+    assert rank_gemini_models(MODELS)[:4] == ["gemini-3.8-flash", "gemini-3.8-flash-preview", "gemini-3.5-flash", "gemini-2.5-flash"]

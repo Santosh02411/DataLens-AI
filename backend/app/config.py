@@ -20,7 +20,7 @@ load_dotenv(BACKEND_DIR / ".env")
 DEFAULT_MODELS = {
     "anthropic": "claude-haiku-5-5",
     "openai": "gpt-4.1-mini",
-    "gemini": "gemini-2.5-flash",
+    "gemini": "auto",  # ask Google which models this key can use and pick the best Flash model
 }
 KEY_VARS = {  # order = auto-detect preference when several keys are set
     "gemini": "GEMINI_API_KEY",

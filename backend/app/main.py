@@ -169,8 +169,11 @@ def create_app(settings: Settings | None = None, llm_transport: httpx.BaseTransp
 
     @app.get("/api/status")
     def status() -> dict[str, Any]:
+        ai = llm.status(settings)
+        if app.state.interpreter.resolved_model:
+            ai["model"] = app.state.interpreter.resolved_model
         return {
-            "ai": llm.status(settings),
+            "ai": ai,
             "limits": {"max_upload_mb": settings.max_upload_mb, "max_rows": settings.max_rows, "max_columns": settings.max_columns},
             "sample_available": settings.sample_data_path.exists(),
         }
