@@ -207,3 +207,75 @@ def test_excel_sheet_selection(client):
     assert other["rows"] == 1 and other["columns"][0]["name"] == "b"
     bad = client.post("/api/datasets", files={"file": ("m.xlsx", buf.getvalue())}, data={"sheet": "Nope"})
     assert bad.status_code == 400 and bad.json()["error"]["code"] == "unknown_sheet"
+
+
+# ---------------------------------------------------------------- Gemini + deployment safeguards
+
+
+def gemini_client(monkeypatch, replies, **settings_kw):
+    monkeypatch.setenv("GEMINI_API_KEY", "g-test-key")
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append({"url": str(request.url), "headers": dict(request.headers), "body": json.loads(request.content)})
+        reply = replies[min(len(calls) - 1, len(replies) - 1)]
+        return httpx.Response(200, json=reply)
+
+    app = create_app(Settings(llm_provider="gemini", **settings_kw), llm_transport=httpx.MockTransport(handler))
+    return TestClient(app), calls
+
+
+def gem_text(text):
+    return {"candidates": [{"content": {"parts": [{"text": text}]}, "finishReason": "STOP"}]}
+
+
+def test_gemini_is_preferred_when_several_keys_exist(monkeypatch):
+    for k in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY"):
+        monkeypatch.setenv(k, "x")
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    s = Settings()
+    assert s.llm_provider == "gemini" and s.llm_model == "gemini-2.5-flash"
+
+
+def test_gemini_request_shape_and_answer(monkeypatch):
+    op = json.dumps({"intent": "Total revenue by region", "operation": {"type": "aggregate", "agg": "sum", "column": "revenue", "group_by": ["region"]}})
+    c, calls = gemini_client(monkeypatch, [{"candidates": [{"content": {"parts": [{"text": op[:40]}, {"text": op[40:]}]}}]}])
+    ds = c.post("/api/datasets/sample").json()
+    body = c.post(f"/api/datasets/{ds['id']}/ask", json={"question": "revenue by region"}).json()
+    assert body["status"] == "answered" and body["intent"] == "Total revenue by region"
+    call = calls[0]
+    assert call["url"] == "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+    assert call["headers"]["x-goog-api-key"] == "g-test-key" and "key=" not in call["url"]  # key never in the URL
+    assert call["body"]["generationConfig"]["responseMimeType"] == "application/json"
+    assert "Schema:" in call["body"]["systemInstruction"]["parts"][0]["text"]
+
+
+def test_gemini_blocked_answer_is_reported(monkeypatch):
+    c, _ = gemini_client(monkeypatch, [{"candidates": [{"finishReason": "SAFETY"}]}])
+    ds = c.post("/api/datasets/sample").json()
+    r = c.post(f"/api/datasets/{ds['id']}/ask", json={"question": "revenue by region"})
+    assert r.status_code == 502 and "SAFETY" in r.json()["error"]["message"]
+
+
+def test_ai_rate_limit_per_visitor(monkeypatch):
+    reply = gem_text(json.dumps({"intent": "x", "operation": {"type": "aggregate", "agg": "count"}}))
+    c, calls = gemini_client(monkeypatch, [reply], ai_rate_per_minute=2, ai_daily_limit=100)
+    ds = c.post("/api/datasets/sample").json()
+    codes = [c.post(f"/api/datasets/{ds['id']}/ask", json={"question": "how many rows"}).status_code for _ in range(3)]
+    assert codes == [200, 200, 429] and len(calls) == 2  # the blocked request never reaches Gemini
+
+
+def test_ai_daily_limit_and_proxy_client_ids(monkeypatch):
+    reply = gem_text(json.dumps({"intent": "x", "operation": {"type": "aggregate", "agg": "count"}}))
+    c, calls = gemini_client(monkeypatch, [reply], ai_rate_per_minute=1, ai_daily_limit=3, trust_proxy=True)
+    ds = c.post("/api/datasets/sample").json()
+    codes = [c.post(f"/api/datasets/{ds['id']}/ask", json={"question": "how many rows"}, headers={"X-Forwarded-For": f"10.0.0.{i}"}).status_code for i in range(4)]
+    assert codes == [200, 200, 200, 429]  # different visitors each get their minute, the day cap still holds
+    assert "daily limit" in c.post(f"/api/datasets/{ds['id']}/ask", json={"question": "x rows"}, headers={"X-Forwarded-For": "10.0.0.9"}).json()["error"]["message"]
+
+
+def test_non_ai_features_ignore_ai_limits(monkeypatch):
+    c, _ = gemini_client(monkeypatch, [gem_text("{}")], ai_rate_per_minute=1, ai_daily_limit=1)
+    ds = c.post("/api/datasets/sample").json()
+    for _ in range(5):
+        assert c.post(f"/api/datasets/{ds['id']}/run", json={"operation": {"type": "aggregate", "agg": "count"}}).status_code == 200
