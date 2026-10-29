@@ -22,10 +22,10 @@ DEFAULT_MODELS = {
     "openai": "gpt-4.1-mini",
     "gemini": "gemini-2.5-flash",
 }
-KEY_VARS = {
-    "anthropic": "ANTHROPIC_API_KEY",
-    "openai": "OPENAI_API_KEY",
+KEY_VARS = {  # order = auto-detect preference when several keys are set
     "gemini": "GEMINI_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
 }
 
 
@@ -55,6 +55,10 @@ class Settings:
     # Optional: route requests through a compatible proxy/gateway instead of the provider's public URL.
     llm_base_url: str | None = field(default_factory=lambda: (os.getenv("LLM_BASE_URL") or "").rstrip("/") or None)
     llm_timeout_s: int = field(default_factory=lambda: _int("LLM_TIMEOUT_SECONDS", 30))
+    # Protects your AI key on a public deployment: limits per visitor and per day (0 disables a limit).
+    ai_rate_per_minute: int = field(default_factory=lambda: _int("AI_RATE_PER_MINUTE", 8))
+    ai_daily_limit: int = field(default_factory=lambda: _int("AI_DAILY_LIMIT", 300))
+    trust_proxy: bool = field(default_factory=lambda: os.getenv("TRUST_PROXY", "0").lower() in ("1", "true", "yes"))
     max_upload_mb: int = field(default_factory=lambda: _int("MAX_UPLOAD_MB", 25))
     max_rows: int = field(default_factory=lambda: _int("MAX_ROWS", 500_000))
     max_columns: int = field(default_factory=lambda: _int("MAX_COLUMNS", 200))

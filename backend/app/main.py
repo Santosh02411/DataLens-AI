@@ -68,12 +68,59 @@ def api_error(status: int, code: str, message: str, details: list[str] | None = 
     return HTTPException(status_code=status, detail={"code": code, "message": message, "details": details or []})
 
 
+class AIQuota:
+    """In-memory limits that keep a public deployment from exhausting the owner's AI key."""
+
+    def __init__(self, per_minute: int, per_day: int):
+        import threading
+        from collections import defaultdict, deque
+
+        self.per_minute, self.per_day = per_minute, per_day
+        self.hits: dict[str, Any] = defaultdict(deque)
+        self.day, self.day_count = None, 0
+        self.lock = threading.Lock()
+
+    def take(self, client: str, n: int = 1) -> str | None:
+        import time
+        from datetime import date
+
+        now = time.monotonic()
+        with self.lock:
+            if self.day != date.today():
+                self.day, self.day_count = date.today(), 0
+            if self.per_day and self.day_count + n > self.per_day:
+                return "The daily limit for AI requests on this deployment has been reached. Everything that doesn't need AI still works; AI questions reset tomorrow."
+            q = self.hits[client]
+            while q and now - q[0] > 60:
+                q.popleft()
+            if self.per_minute and len(q) + n > self.per_minute:
+                return f"You're sending AI requests quickly (limit {self.per_minute} per minute). Wait a moment and try again; suggested questions and the analysis builder work without AI."
+            q.extend([now] * n)
+            self.day_count += n
+            return None
+
+
 def create_app(settings: Settings | None = None, llm_transport: httpx.BaseTransport | None = None) -> FastAPI:
     settings = settings or get_settings()
     app = FastAPI(title="DataLens AI", version="1.0.0")
     app.state.settings = settings
     app.state.store = DatasetStore(settings.max_datasets)
     app.state.interpreter = llm.Interpreter(settings, transport=llm_transport)
+    app.state.ai_quota = AIQuota(settings.ai_rate_per_minute, settings.ai_daily_limit)
+
+    def client_id(request: Request) -> str:
+        if settings.trust_proxy:
+            fwd = request.headers.get("x-forwarded-for", "")
+            if fwd:
+                return fwd.split(",")[0].strip()
+        return request.client.host if request.client else "unknown"
+
+    def require_ai_quota(request: Request, n: int = 1) -> None:
+        if not app.state.interpreter.configured:
+            return  # the endpoint itself explains that AI isn't configured
+        msg = app.state.ai_quota.take(client_id(request), n)
+        if msg:
+            raise api_error(429, "ai_rate_limited", msg)
 
     app.add_middleware(
         CORSMiddleware,
@@ -221,8 +268,9 @@ def create_app(settings: Settings | None = None, llm_transport: httpx.BaseTransp
         return run_validated(ds, op, question, None, "manual")
 
     @app.post("/api/datasets/{dataset_id}/ask")
-    def ask(dataset_id: str, body: AskBody) -> dict[str, Any]:
+    def ask(dataset_id: str, body: AskBody, request: Request) -> dict[str, Any]:
         ds = get_ds(dataset_id)
+        require_ai_quota(request)
         question = " ".join(body.question.split())
         interpreter: llm.Interpreter = app.state.interpreter
         try:
@@ -256,13 +304,14 @@ def create_app(settings: Settings | None = None, llm_transport: httpx.BaseTransp
         return get_insights(get_ds(dataset_id))
 
     @app.post("/api/datasets/{dataset_id}/insights/{insight_id}/explain")
-    def explain(dataset_id: str, insight_id: str) -> dict[str, Any]:
+    def explain(dataset_id: str, insight_id: str, request: Request) -> dict[str, Any]:
         ds = get_ds(dataset_id)
         found = next((i for i in get_insights(ds)["insights"] if i["id"] == insight_id), None)
         if found is None:
             raise api_error(404, "insight_not_found", "That insight isn't available for this dataset.")
         if insight_id in ds.explanations:
             return {"insight_id": insight_id, "explanation": ds.explanations[insight_id], "numbers_checked": True, "cached": True}
+        require_ai_quota(request)
         allowed = allowed_numbers(found)
         try:
             text, _ = llm.explain_insight(app.state.interpreter, found, lambda t: unsupported_numbers(t, allowed))
@@ -339,7 +388,10 @@ def create_app(settings: Settings | None = None, llm_transport: httpx.BaseTransp
         return {"suite": suite["suite"], "version": suite["version"], "cases": len(suite["cases"]), "last_run": getattr(app.state, "last_benchmark", None)}
 
     @app.post("/api/benchmark/run")
-    def benchmark_run(body: BenchmarkBody) -> dict[str, Any]:
+    def benchmark_run(body: BenchmarkBody, request: Request) -> dict[str, Any]:
+        if body.include_ai:
+            n_ai = sum(1 for c in benchmark.load_suite()["cases"] if c.get("ai") and (not body.ids or c["id"] in body.ids))
+            require_ai_quota(request, n_ai)
         result = benchmark.run_suite(app.state.interpreter, include_ai=body.include_ai, ids=body.ids)
         if not body.ids:
             app.state.last_benchmark = result

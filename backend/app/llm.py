@@ -173,7 +173,12 @@ class Interpreter:
                     "generationConfig": {"temperature": 0, **({"responseMimeType": "application/json"} if json_mode else {})},
                 },
             )
-            return data["candidates"][0]["content"]["parts"][0]["text"]
+            candidates = data.get("candidates") or []
+            parts = (candidates[0].get("content") or {}).get("parts") if candidates else None
+            if not parts:
+                reason = (candidates[0].get("finishReason") if candidates else None) or (data.get("promptFeedback") or {}).get("blockReason") or "no answer"
+                raise LLMError(f"Gemini returned no text ({reason}). Try rephrasing the question.")
+            return "".join(p.get("text", "") for p in parts if not p.get("thought"))
         raise LLMNotConfigured()
 
     def interpret(self, question: str, df: pd.DataFrame, schema: dict[str, str]) -> tuple[str, Any, int]:
