@@ -1,0 +1,20 @@
+# Render Blueprint: New > Blueprint > pick this repo. You'll be asked for GEMINI_API_KEY.
+services:
+  - type: web
+    name: datalens-ai
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/status
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false          # secret: entered in the Render dashboard, never committed
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: LLM_MODEL
+        value: gemini-2.5-flash
+      - key: AI_RATE_PER_MINUTE
+        value: "8"
+      - key: AI_DAILY_LIMIT
+        value: "300"
+      - key: TRUST_PROXY
+        value: "1"

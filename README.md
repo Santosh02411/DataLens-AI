@@ -147,14 +147,37 @@ cd ../backend && uvicorn app.main:app --port 8000
 
 Open **http://localhost:8000**. FastAPI serves the built UI and the API from one process.
 
+## Deploying (free)
+
+DataLens deploys as **one container**: FastAPI serves both the API and the built web app.
+
+**Render (recommended, free tier):**
+
+1. Push this repository to GitHub.
+2. In Render, choose **New → Blueprint**, then pick the repo. `render.yaml` configures everything.
+3. When prompted, paste your **GEMINI_API_KEY**. It's stored as a secret in Render, never in the repo.
+4. Open the URL Render gives you. The health check is `/api/status`.
+
+**Any Docker host** (Railway, Fly.io, a VM, Hugging Face Spaces):
+
+```bash
+docker build -t datalens-ai .
+docker run -p 8000:8000 -e GEMINI_API_KEY=your-key datalens-ai
+```
+
+Things to know about a public deployment:
+
+- **No sign-in, by design.** Nothing is stored long-term: uploads live only in server memory and are never written to disk. Free hosts sleep when idle, which clears loaded datasets; users simply load or upload again.
+- **Your key is protected.** AI requests are limited per visitor (`AI_RATE_PER_MINUTE`, default 8) and per day across everyone (`AI_DAILY_LIMIT`, default 300). When a limit is hit, users get a clear message, and every non-AI feature keeps working.
+- **Offline demo.** `demo/index.html` is a single-file replay of the real app on the sample data (no server needed). Enable GitHub Pages on the `demo/` folder to give judges a link that always works.
+
 ## Enabling AI questions
 
-Without a key, everything works except typed questions, and the UI explains this. To enable them, edit `backend/.env`, set **one** of the following keys, and restart the backend:
+Without a key, everything works except typed questions and AI explanations, and the UI explains this. To enable them, create a free Gemini key at https://aistudio.google.com/apikey, put it in `backend/.env`, and restart the backend:
 
 ```
-ANTHROPIC_API_KEY=...     # or
-OPENAI_API_KEY=...        # or
-GEMINI_API_KEY=...
+GEMINI_API_KEY=...        # recommended: free tier
+# OPENAI_API_KEY=... or ANTHROPIC_API_KEY=... also work
 ```
 
 The provider is auto-detected from whichever key is set. You can force one with `LLM_PROVIDER`, choose a model with `LLM_MODEL`, and route requests through a compatible gateway with `LLM_BASE_URL`. If the provider reports a model error, set `LLM_MODEL` to a model your account can use. The sidebar shows the active provider and model.
@@ -166,7 +189,7 @@ cd backend
 pytest
 ```
 
-There are 133 backend tests (`pytest`, including the full accuracy benchmark as a regression guard) and 11 frontend tests (`npm test`). They cover:
+There are 139 backend tests (`pytest`, including the full accuracy benchmark as a regression guard) and 11 frontend tests (`npm test`). They cover:
 
 - **Validation:** unknown operation types and extra keys are rejected, unknown columns are reported with alternatives, type mismatches are caught, filter values are checked against the data, period formats are validated, and limits are enforced.
 - **Execution:** grouped sums and trends are checked against plain Pandas, along with exclusion of missing values, period change, honest errors for missing periods and for filters that match no rows, the correlation value and its caveats, top rows, distributions, and evidence rows coming from the matching group. The sample-data demo answer is also recomputed independently with Pandas.
@@ -278,5 +301,3 @@ devpost/          planning docs for the Devpost Learn workflow
 | Excel file rejected | Make sure it's `.xlsx` and not password-protected. |
 | `pip install` fails building pandas or pydantic | Upgrade pip (`python -m pip install -U pip`) and reinstall; the requirements use version ranges that have prebuilt wheels for Python 3.10–3.14. |
 | Wrong sheet loaded from a workbook | Use the **Sheet** picker next to the file name. |
-#   D a t a L e n s - A I  
- 

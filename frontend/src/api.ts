@@ -13,7 +13,27 @@ export class ApiError extends Error {
   }
 }
 
+declare global {
+  interface Window {
+    /** Present only in the self-contained offline demo: responses recorded from the real backend. */
+    __DATALENS_DEMO__?: { responses: Record<string, { status: number; body: unknown }>; report?: string };
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const demo = typeof window !== "undefined" ? window.__DATALENS_DEMO__ : undefined;
+  if (demo) {
+    const key = `${(init?.method ?? "GET").toUpperCase()} ${path} ${typeof init?.body === "string" ? init.body : ""}`;
+    const hit = demo.responses[key];
+    await new Promise((r) => setTimeout(r, 90));
+    if (!hit)
+      throw new ApiError(0, "offline_demo", "This exact interaction wasn't recorded for the offline demo. Try the suggested options, or run DataLens locally for live calculations on any filter, file or question.");
+    if (hit.status >= 400) {
+      const e = (hit.body as { error?: { code: string; message: string; details?: string[] } }).error;
+      throw new ApiError(hit.status, e?.code ?? "http_error", e?.message ?? `HTTP ${hit.status}`, e?.details ?? []);
+    }
+    return hit.body as T;
+  }
   let res: Response;
   try {
     res = await fetch(`/api${path}`, init);
@@ -73,5 +93,8 @@ export const api = {
   scenarioOptions: (id: string) => request<ScenarioOptions>(`/datasets/${id}/scenario/options`),
   scenario: (id: string, body: { target: string; agg: string; adjustments: { column: string; percent: number }[]; exclude: FilterSpec[]; group_by: string | null }) =>
     request<ScenarioResult>(`/datasets/${id}/scenario`, json(body)),
-  reportUrl: (id: string) => `/api/datasets/${id}/report`,
+  reportUrl: (id: string) =>
+    window.__DATALENS_DEMO__?.report !== undefined
+      ? `data:text/markdown;charset=utf-8,${encodeURIComponent(window.__DATALENS_DEMO__.report)}`
+      : `/api/datasets/${id}/report`,
 };
