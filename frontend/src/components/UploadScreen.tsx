@@ -1,6 +1,7 @@
 import { FileSpreadsheet, UploadCloud } from "lucide-react";
 import { useRef, useState } from "react";
 import type { Status } from "../types";
+import { browserEngine } from "../api";
 import { ThemeToggle } from "../ThemeContext";
 import { ErrorNote, Spinner } from "./ui";
 
@@ -108,8 +109,9 @@ export function UploadScreen({ status, busy, error, onUpload, onSample, onRetry 
 
           {status && !status.ai.configured && (
             <p className="rounded-lg bg-surface-2 px-3 py-2 text-xs leading-relaxed text-ink-muted ring-1 ring-line">
-              AI question answering is off because no API key is configured. Data health, suggested analyses and the analysis builder all work
-              without it.
+              AI question answering is off because no API key is configured. Data health, insights, suggested analyses and the analysis builder all work
+              without it.{" "}
+              {browserEngine.active() && <button className="font-medium text-lens-deep underline" onClick={browserEngine.promptForKey}>Use my own free Gemini key</button>}
             </p>
           )}
           <ErrorNote error={error} />

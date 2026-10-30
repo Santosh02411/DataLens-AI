@@ -1,6 +1,6 @@
 import { Activity, Check, ChevronRight, Download, FileUp, FlaskConical, Gauge, LayoutDashboard, Lightbulb, MessageSquareText, Search, SlidersHorizontal, Table2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "./api";
+import { api, browserEngine } from "./api";
 import { AnswerCard } from "./components/AnswerCard";
 import { AskView } from "./components/AskView";
 import { BuilderView } from "./components/BuilderView";
@@ -194,6 +194,10 @@ export default function App() {
             <span className="truncate">{status?.ai.configured ? `AI: ${status.ai.provider}` : "AI not configured"}</span>
           </p>
           {status?.ai.configured && <p className="truncate pl-3 font-mono text-[11px] text-ink-muted">{status.ai.model}</p>}
+          {browserEngine.active() && (browserEngine.hasKey()
+            ? <button className="pl-3 text-[11px] text-ink-muted underline hover:text-ink" onClick={() => browserEngine.setKey(null)}>Remove my Gemini key</button>
+            : <button className="pl-3 text-[11px] font-medium text-lens-deep underline" onClick={browserEngine.promptForKey}>Add my Gemini key</button>)}
+          {browserEngine.active() && <p className="text-[11px] leading-snug text-ink-muted">Running entirely in your browser. Your data never leaves this device.</p>}
         </div>
       </aside>
 
@@ -228,7 +232,8 @@ export default function App() {
             </div>
           </div>
           <div className="flex gap-2">
-            <a className="btn-quiet" href={api.reportUrl(dataset.id)} download>
+            <a className="btn-quiet" href={api.reportUrl(dataset.id)} download
+              onClick={(e) => { if (browserEngine.active()) { e.preventDefault(); api.downloadReport(dataset.id).catch(setError); } }}>
               <Download className="h-4 w-4" aria-hidden /> Download report
             </a>
             <button

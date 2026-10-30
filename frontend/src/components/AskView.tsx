@@ -2,6 +2,7 @@ import { ArrowUp, Info } from "lucide-react";
 import { useState } from "react";
 import type { AnalysisResult, Status, Suggestion } from "../types";
 import { AnswerCard } from "./AnswerCard";
+import { browserEngine } from "../api";
 import { ErrorNote, Spinner } from "./ui";
 
 interface Props {
@@ -57,6 +58,9 @@ export function AskView({ status, suggestions, analyses, busy, error, onAsk, onS
               Typed questions are turned into analyses by an AI model, and none is configured. Add a key to <code className="font-mono">backend/.env</code> to enable it.
               Suggested questions still run their real analysis, and the{" "}
               <button className="font-medium text-lens-deep underline" onClick={goToBuilder}>analysis builder</button> lets you build any question by hand.
+              {browserEngine.active() && (
+                <> {" "}<button className="font-medium text-lens-deep underline" onClick={browserEngine.promptForKey}>Use my own free Gemini key</button> (kept only in this browser).</>
+              )}
             </span>
           </p>
         )}
