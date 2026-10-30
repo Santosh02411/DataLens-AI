@@ -295,7 +295,9 @@ def inspect_record(df: pd.DataFrame, schema: dict[str, str], row: int) -> dict[s
             b = robust_bounds(col)
             entry["unusual"] = bool(b is not None and b.mask(pd.Series([float(v)])).iloc[0])
         fields.append(entry)
-    same = (df.eq(rec) | (df.isna() & rec.isna().to_numpy())).all(axis=1)  # missing == missing for this purpose
-    duplicates = int(same.sum()) - 1 if len(df) <= 200_000 else None
+    # Row hashes treat missing values consistently (element-wise comparison against pd.NA raises on some
+    # pandas/numpy versions, e.g. the ones used by the in-browser build).
+    hashes = pd.util.hash_pandas_object(df, index=False)
+    duplicates = int((hashes == hashes.loc[row]).sum()) - 1
     return {"row": int(row), "fields": fields, "exact_copies": duplicates,
             "note": "Percentile: share of rows with a lower value (ties count half). Unusual uses the same robust rule as Data health and Insights."}

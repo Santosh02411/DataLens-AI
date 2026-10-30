@@ -186,3 +186,12 @@ def test_record_inspection_counts_duplicates_with_missing_values(client):
     csv = b"a,b\n1,\n1,\n2,3\n" + b"".join(f"{i},{i}\n".encode() for i in range(10, 30))
     ds = client.post("/api/datasets", files={"file": ("d.csv", csv, "text/csv")}).json()
     assert client.get(f"/api/datasets/{ds['id']}/records/0").json()["exact_copies"] == 1
+
+
+def test_record_inspection_with_nullable_integers(client):
+    # Int64 column with missing values: element-wise == against pd.NA can raise on some pandas/numpy versions.
+    csv = b"id,score,team\n1,5,a\n2,,b\n2,,b\n3,7,a\n" + b"".join(f"{i},{i % 9},c\n".encode() for i in range(10, 40))
+    ds = client.post("/api/datasets", files={"file": ("n.csv", csv, "text/csv")}).json()
+    for row, copies in ((1, 1), (0, 0)):
+        r = client.get(f"/api/datasets/{ds['id']}/records/{row}")
+        assert r.status_code == 200 and r.json()["exact_copies"] == copies
